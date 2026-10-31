@@ -1,0 +1,87 @@
+{
+  "name": "Alhashemia - Daily owner report",
+  "settings": { "timezone": "Africa/Cairo", "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "a1",
+      "name": "Every day 8 PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [{ "field": "days", "triggerAtHour": 20 }] } }
+    },
+    {
+      "id": "a2",
+      "name": "Get report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "parameters": {
+        "url": "https://yyoemzphnwpbbuvpqjzx.supabase.co/functions/v1/daily-report",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      }
+    },
+    {
+      "id": "a3",
+      "name": "One item per recipient",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [440, 0],
+      "parameters": { "fieldToSplitOut": "recipients", "include": "allOtherFields", "options": {} }
+    },
+    {
+      "id": "a4",
+      "name": "Excel file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [660, 0],
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "file_base64",
+        "options": {
+          "fileName": "={{ $json.file_name }}",
+          "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+      }
+    },
+    {
+      "id": "a5",
+      "name": "Send summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [880, -100],
+      "parameters": {
+        "chatId": "={{ $json.recipients }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": { "appendAttribution": false, "parse_mode": "HTML" }
+      }
+    },
+    {
+      "id": "a6",
+      "name": "Send Excel",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [880, 100],
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $json.recipients }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {}
+      }
+    }
+  ],
+  "connections": {
+    "Every day 8 PM": { "main": [[{ "node": "Get report", "type": "main", "index": 0 }]] },
+    "Get report": { "main": [[{ "node": "One item per recipient", "type": "main", "index": 0 }]] },
+    "One item per recipient": { "main": [[{ "node": "Excel file", "type": "main", "index": 0 }]] },
+    "Excel file": {
+      "main": [[
+        { "node": "Send summary", "type": "main", "index": 0 },
+        { "node": "Send Excel", "type": "main", "index": 0 }
+      ]]
+    }
+  }
+}
